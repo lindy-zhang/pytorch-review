@@ -1,7 +1,11 @@
 import torch
 from torch import Tensor
 import torch.nn as nn
-from .scaled_dot_product import scaled_dot_product_attention
+try:
+    from .scaled_dot_product import scaled_dot_product_attention
+except ImportError:
+    from scaled_dot_product import scaled_dot_product_attention
+#from .scaled_dot_product import scaled_dot_product_attention
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
@@ -33,3 +37,28 @@ class MultiHeadAttention(nn.Module):
         x = x.contiguous()
         x = x.reshape(batch, seq_len, self.d_model)
         return x
+
+    def forward(self, x: Tensor, causal: bool=False) -> Tensor:
+        q = self.w_q(x)
+        k = self.w_k(x)
+        v = self.w_v(x)
+
+        q = self.split_heads(q) 
+        k = self.split_heads(k)
+        v = self.split_heads(v)
+
+        attn_output = scaled_dot_product_attention(q, k, v, causal=causal)
+        attn_output = self.merge_heads(attn_output)
+        z = self.w_o(attn_output)
+
+        return z
+
+if __name__ == "__main__":
+    torch.manual_seed(0)
+    batch, seq_len, d_model, num_heads = 2, 10, 64, 8
+
+    mha = MultiHeadAttention(d_model, num_heads)
+    x = torch.randn(batch, seq_len, d_model)
+    out = mha(x, causal=True)
+    print(out.shape)
+        

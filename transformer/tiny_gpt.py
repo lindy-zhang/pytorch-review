@@ -25,8 +25,22 @@ class TinyGPT(nn.Module):
         logits = self.lm_head(x)
         return logits
 
+    @torch.no_grad()
+    def generate(self, idx: Tensor, max_new_tokens: int) -> Tensor:
+        # Repeat the predict-append cycle max_new_tokens times
+        for _ in range(max_new_tokens):
+            logits = self(idx)
+            last_logits = logits[:, -1, :]
+            # Apply softmax to get probabilities
+            probs = F.softmax(last_logits, dim=1)
+            # Generate next token
+            next_token = torch.multinomial(probs, num_samples=1)
+            # Append next token
+            idx = torch.cat([idx, next_token], dim=1)
+        return idx
+
 if __name__ == "__main__":
-    # Test
+    # Test forward
     torch.manual_seed(0)
     vocab_size = 65
     model = TinyGPT(vocab_size, d_model=64, num_heads=4, d_ff=256, num_layers=2, max_seq_len=32)
@@ -41,3 +55,10 @@ if __name__ == "__main__":
     n_params = sum(p.numel() for p in model.parameters())
     print(f"total params: {n_params:,}")
     print("OK")
+
+
+    # Test generate
+    generated = model.generate(idx[:1, :4], max_new_tokens=10)
+    print("generated shape:", generated.shape)
+    assert generated.shape == (1, 14)
+    print("OK generate")
